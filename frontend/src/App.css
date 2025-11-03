@@ -103,7 +103,7 @@ button:hover:not(:disabled) {
   margin-top: 20px;
 }
 
-h2 {
+.document-preview h2 {
   margin-top: 0;
   font-size: 1.5em;
   color: #333;
@@ -112,11 +112,96 @@ h2 {
   margin-bottom: 20px;
 }
 
-.preview-content {
+.document-preview .preview-content {
   background-color: #f9f9f9;
   padding: 15px;
   border-radius: 8px;
   min-height: 200px;
   white-space: pre-wrap;
   word-wrap: break-word;
+  font-family: sans-serif; 
+  margin: 2cm; 
+  line-height: 1.6; 
+  color: #333;
+}
+
+.document-preview .preview-content h1, 
+.document-preview .preview-content h2, 
+.document-preview .preview-content h3, 
+.document-preview .preview-content h4, 
+.document-preview .preview-content h5, 
+.document-preview .preview-content h6 {
+  margin-top: 1em; 
+  margin-bottom: 0.5em; 
+  font-weight: bold; 
+  line-height: 1.2;
+}
+
+.document-preview .preview-content h1 {
+  font-size: 2em; 
+  border-bottom: 1px solid #eee; 
+  padding-bottom: 0.3em;
+}
+
+.document-preview .preview-content h2 {
+  font-size: 1.5em; 
+  border-bottom: 1px solid #eee; 
+  padding-bottom: 0.3em;
+}
+
+.document-preview .preview-content h3 {
+  font-size: 1.2em;
+}
+
+.document-preview .preview-content p {
+  margin-bottom: 1em;
+}
+
+.document-preview .preview-content ul, 
+.document-preview .preview-content ol {
+  margin-bottom: 1em; 
+  padding-left: 2em;
+}
+
+.document-preview .preview-content li {
+  margin-bottom: 0.5em;
+}
+
+.document-preview .preview-content pre {
+  background-color: #f4f4f4; 
+  padding: 10px; 
+  border-radius: 5px; 
+  overflow-x: auto; 
+  font-family: monospace;
+}
+
+.document-preview .preview-content code {
+  font-family: monospace; 
+  background-color: #f4f4f4; 
+  padding: 2px 4px; 
+  border-radius: 3px;
+}
+
+.document-preview .preview-content blockquote {
+  border-left: 4px solid #ccc; 
+  padding-left: 1em; 
+  margin-left: 0; 
+  color: #666;
+}
+
+.document-preview .preview-content table {
+  width: 100%; 
+  border-collapse: collapse; 
+  margin-bottom: 1em;
+}
+
+.document-preview .preview-content th, 
+.document-preview .preview-content td {
+  border: 1px solid #ddd; 
+  padding: 8px; 
+  text-align: left;
+}
+
+.document-preview .preview-content th {
+  background-color: #f2f2f2;
 }
