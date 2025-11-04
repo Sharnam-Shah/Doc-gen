@@ -18,6 +18,9 @@ const DocumentCreation = () => {
   const [finalDocument, setFinalDocument] = useState(null);
   const [conversationId, setConversationId] = useState(urlConversationId);
   const [isEditing, setIsEditing] = useState(false);
+  const fileInputRef = useRef(null);
+  const [signatureRole, setSignatureRole] = useState(null); // 'landlord' | 'tenant'
+  const editorRef = useRef(null);
   const chatContainerRef = useRef(null);
 
   useEffect(() => {
@@ -139,6 +142,98 @@ const DocumentCreation = () => {
     }
   };
 
+  // Removed custom placement; handled by AI formatting via chat endpoint
+
+  const insertAtCursor = (textArea, textToInsert) => {
+    if (!textArea) return null;
+    const start = textArea.selectionStart ?? finalDocument?.length ?? 0;
+    const end = textArea.selectionEnd ?? start;
+    const before = finalDocument?.slice(0, start) ?? '';
+    const after = finalDocument?.slice(end) ?? '';
+    const next = `${before}${textToInsert}${after}`;
+    // restore caret just after inserted text
+    setTimeout(() => {
+      try {
+        textArea.focus();
+        const cursor = start + textToInsert.length;
+        textArea.setSelectionRange(cursor, cursor);
+      } catch {}
+    }, 0);
+    return next;
+  };
+
+  const handleSelectSignature = (role) => {
+    setSignatureRole(role);
+    if (fileInputRef.current) fileInputRef.current.click();
+  };
+
+  const handleSignatureFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!['image/png','image/jpeg','image/jpg','image/webp'].includes(file.type)) {
+      toast.error('Please select a PNG, JPG, or WEBP image.');
+      return;
+    }
+    try {
+      const form = new FormData();
+      form.append('signature', file);
+      const res = await axios.post('upload-signature/', form, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      const url = res.data?.url;
+      if (!url) {
+        toast.error('Upload failed. No URL returned.');
+        return;
+      }
+      const role = signatureRole === 'landlord' ? 'landlord' : 'tenant';
+      // Ask AI (Gemini) to place and format the document properly with this signature
+      const signatureMarkdown = `![signature ${role}](${url})`;
+      const instruction = `You are formatting a legal document. Insert and position the signature image for the ${role === 'landlord' ? 'First Party (Landlord)' : 'Second Party (Tenant)'} in the correct designated area so the final order is:
+1) First Party signature
+2) First Party name
+3) Second Party signature
+4) Second Party name
+Use exactly this markdown image for the ${role === 'landlord' ? 'First Party' : 'Second Party'}: ${signatureMarkdown}
+Preserve all existing content and headings. Return the entire updated document in JSON as {"type":"document","text":"...markdown..."}.`;
+
+      // Build payload with document context if available
+      let payloadMessages = [...messages];
+      if (finalDocument) {
+        payloadMessages = [
+          { sender: 'user', text: `Here is the current legal document. Please use it as the basis for updates.\n\n---\n\n${finalDocument}` },
+          { sender: 'bot', text: 'Okay, I have the document. What changes would you like to make?' }
+        ];
+      }
+      payloadMessages.push({ sender: 'user', text: instruction });
+
+      // Optional: show generating state
+      setIsGenerating(true);
+      const chatRes = await axios.post('chat/', { messages: payloadMessages });
+      const aiResponse = chatRes.data;
+      if (aiResponse.type === 'document') {
+        const documentMarkdown = aiResponse.text;
+        setFinalDocument(documentMarkdown);
+        const newBotMessages = [
+          { sender: 'bot', type: 'document_context', text: documentMarkdown },
+          { sender: 'bot', type: 'display', text: 'I have updated the document with the signature placement.' }
+        ];
+        setMessages(prev => [...(finalDocument ? prev : messages), ...newBotMessages]);
+        toast.success('Signature placed and document formatted.');
+      } else {
+        setMessages(prev => [...prev, { sender: 'bot', type: 'display', text: aiResponse.text || 'AI response received.' }]);
+        toast.success('AI responded. Please review the update.');
+      }
+    } catch (error) {
+      console.error('Signature upload error:', error);
+      const msg = error.response?.data?.error || 'Failed to upload signature.';
+      toast.error(msg);
+    } finally {
+      setIsGenerating(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setSignatureRole(null);
+    }
+  };
+
   const handleKeyPress = (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -235,6 +330,7 @@ const DocumentCreation = () => {
               <textarea
                 value={finalDocument}
                 onChange={(e) => setFinalDocument(e.target.value)}
+                ref={editorRef}
                 className="w-full h-96 p-4 border border-gray-300 rounded-lg bg-gray-50 font-mono text-sm"
               />
             ) : (
@@ -243,10 +339,31 @@ const DocumentCreation = () => {
               </div>
             )}
 
-            <div className="mt-6 text-center">
+            <div className="mt-6 flex items-center justify-center gap-3 flex-wrap">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={handleSignatureFileChange}
+                className="hidden"
+              />
+              <button
+                onClick={() => handleSelectSignature('landlord')}
+                className="px-5 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors flex items-center gap-2"
+              >
+                <PenTool className="w-5 h-5" />
+                <span>First Party Signature</span>
+              </button>
+              <button
+                onClick={() => handleSelectSignature('tenant')}
+                className="px-5 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors flex items-center gap-2"
+              >
+                <PenTool className="w-5 h-5" />
+                <span>Second Party Signature</span>
+              </button>
               <button
                 onClick={handleDownloadPdf}
-                className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-3 px-8 rounded-xl text-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-2 mx-auto"
+                className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold py-3 px-8 rounded-xl text-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center gap-2"
               >
                 <Download className="w-6 h-6" />
                 <span>Download as PDF</span>

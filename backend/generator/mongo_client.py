@@ -1,8 +1,9 @@
+import os
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 
 # It's a good practice to use a centralized client
-client = MongoClient('mongodb://localhost:27017/')
+client = MongoClient(os.getenv('MONGO_URI', 'mongodb://localhost:27017/'))
 db = client['legal_doc_generator']
 conversations_collection = db['conversations']
 

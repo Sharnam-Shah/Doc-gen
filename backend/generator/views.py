@@ -1,4 +1,4 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, parser_classes
 from rest_framework.response import Response
 from django.conf import settings
 import google.generativeai as genai
@@ -9,6 +9,10 @@ from xhtml2pdf import pisa
 from io import BytesIO
 from .mongo_client import get_all_conversations, get_conversation_by_id, save_conversation, update_conversation, delete_conversation
 from rest_framework import status
+from rest_framework.parsers import MultiPartParser, FormParser
+from django.core.files.storage import FileSystemStorage
+from django.utils.crypto import get_random_string
+import os
 
 from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate, AIMessagePromptTemplate
 
@@ -175,6 +179,23 @@ def _generate_pdf_from_markdown(markdown_content):
             margin-left: 0;
             border: 0.5px solid #000;
         }
+        /* Signature sizing and spacing */
+        img[alt~="signature"][alt~="landlord"] {
+            display: block;
+            width: 180px;
+            height: 80px;
+            object-fit: contain;
+            margin-top: 8mm;   /* place below landlord text */
+            margin-bottom: 0;
+        }
+        img[alt~="signature"][alt~="tenant"] {
+            display: block;
+            width: 180px;
+            height: 80px;
+            object-fit: contain;
+            margin-top: 0;
+            margin-bottom: 8mm; /* place above tenant text */
+        }
         /* Remove header and footer for a more traditional look */
     """
 
@@ -190,14 +211,50 @@ def _generate_pdf_from_markdown(markdown_content):
     </html>
     """
 
+    # Resolve media/static URIs so xhtml2pdf can embed images
+    def link_callback(uri, rel):
+        if uri.startswith(settings.MEDIA_URL):
+            path = os.path.join(settings.MEDIA_ROOT, uri.replace(settings.MEDIA_URL, ''))
+            return path
+        if uri.startswith(settings.STATIC_URL):
+            static_root = getattr(settings, 'STATIC_ROOT', '') or ''
+            if static_root:
+                return os.path.join(static_root, uri.replace(settings.STATIC_URL, ''))
+        # Fallback: return as-is; remote URLs may or may not be fetched by xhtml2pdf
+        return uri
+
     result_file = BytesIO()
-    pisa_status = pisa.CreatePDF(full_html, dest=result_file)
+    pisa_status = pisa.CreatePDF(full_html, dest=result_file, link_callback=link_callback)
 
     if pisa_status.err:
         raise Exception(f'PDF generation error: {pisa_status.err}')
 
     result_file.seek(0)
     return result_file
+
+@api_view(['POST'])
+@parser_classes([MultiPartParser, FormParser])
+def upload_signature(request):
+    """Accepts an image upload and returns its accessible URL for embedding in markdown."""
+    file_obj = request.FILES.get('signature') or request.FILES.get('file')
+    if not file_obj:
+        return Response({'error': 'No file uploaded. Use form field name "signature".'}, status=400)
+
+    allowed_content_types = {'image/png', 'image/jpeg', 'image/jpg', 'image/webp'}
+    if file_obj.content_type not in allowed_content_types:
+        return Response({'error': 'Unsupported file type. Use PNG, JPG, or WEBP.'}, status=400)
+
+    signatures_dir = os.path.join(settings.MEDIA_ROOT, 'signatures')
+    os.makedirs(signatures_dir, exist_ok=True)
+
+    ext = os.path.splitext(file_obj.name)[1].lower() or '.png'
+    safe_name = f"signature_{get_random_string(12)}{ext}"
+    storage = FileSystemStorage(location=signatures_dir, base_url=f"{settings.MEDIA_URL}signatures/")
+    filename = storage.save(safe_name, file_obj)
+    file_url = storage.url(filename)
+    absolute_url = request.build_absolute_uri(file_url)
+
+    return Response({'url': absolute_url}, status=201)
 
 @api_view(['GET'])
 def download_conversation_pdf(request, pk):
