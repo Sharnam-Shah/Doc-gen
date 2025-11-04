@@ -7,6 +7,7 @@ import certifi
 
 def get_db():
     mongo_uri = settings.MONGO_URI
+    print(f"Connecting to MongoDB with URI: {mongo_uri}") # Add this line for debugging
     if not mongo_uri:
         raise Exception("MONGO_URI is not configured in your environment variables.")
     client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
