@@ -32,6 +32,9 @@ DEBUG = 'RENDER' not in os.environ
 
 ALLOWED_HOSTS = []
 
+if DEBUG:
+    ALLOWED_HOSTS += ['localhost', '127.0.0.1']
+
 RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
 if RENDER_EXTERNAL_HOSTNAME:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
@@ -41,6 +44,7 @@ CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://localhost:5173",
     "https://doc-gen-iota.vercel.app",
 ]
 CORS_EXPOSE_HEADERS = ['Content-Disposition']
@@ -99,7 +103,7 @@ WSGI_APPLICATION = 'legal_doc_generator.wsgi.application'
 
 DATABASES = {
     'default': dj_database_url.config(
-        default='postgresql://postgres:postgres@localhost:5432/mysite',
+        default=f'sqlite:///{BASE_DIR}/db.sqlite3',
         conn_max_age=600
     )
 }
