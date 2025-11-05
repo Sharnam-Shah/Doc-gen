@@ -4,22 +4,21 @@ from django.conf import settings
 import certifi
 
 
+
 def get_db():
     mongo_uri = settings.MONGO_URI
     if not mongo_uri:
-        # Provide a safe default for local development to avoid import-time crashes
-        mongo_uri = "mongodb://localhost:27017/docgen"
+        raise Exception("MONGO_URI is not configured in your environment variables.")
     client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
-    db = client.get_default_database() or client.get_database("docgen")
+    db = client.get_default_database() # The database name is part of the connection string
     return db
 
-def get_conversations_collection():
-    return get_db()['conversations']
+db = get_db()
+conversations_collection = db['conversations']
 
 def get_all_conversations():
     """Fetches all conversations, returning the id, title, created_at, and latest_document."""
     try:
-        conversations_collection = get_conversations_collection()
         # Project the fields we need for the list view
         conversations = conversations_collection.find({}, {'title': 1, 'created_at': 1, 'latest_document': 1})
         # Convert ObjectId to string for JSON serialization
@@ -31,7 +30,6 @@ def get_all_conversations():
 def get_conversation_by_id(conversation_id):
     """Fetches a single conversation by its ID."""
     try:
-        conversations_collection = get_conversations_collection()
         conversation = conversations_collection.find_one({'_id': ObjectId(conversation_id)})
         if conversation:
             conversation['_id'] = str(conversation['_id'])
@@ -44,7 +42,6 @@ def save_conversation(title, messages, latest_document=None):
     """Saves a new conversation to the database."""
     from datetime import datetime
     try:
-        conversations_collection = get_conversations_collection()
         conversation_doc = {
             'title': title,
             'messages': messages,
@@ -61,7 +58,6 @@ def update_conversation(conversation_id, title, messages, latest_document=None):
     """Updates an existing conversation."""
     from datetime import datetime
     try:
-        conversations_collection = get_conversations_collection()
         update_doc = {
             '$set': {
                 'title': title,
@@ -79,7 +75,6 @@ def update_conversation(conversation_id, title, messages, latest_document=None):
 def delete_conversation(conversation_id):
     """Deletes a conversation from the database."""
     try:
-        conversations_collection = get_conversations_collection()
         conversations_collection.delete_one({'_id': ObjectId(conversation_id)})
         return True
     except Exception as e:

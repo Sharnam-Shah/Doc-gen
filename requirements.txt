@@ -1,7 +1,0 @@
-sentence-transformers==3.2.1
-qdrant-client==1.12.1
-python-dotenv==1.0.1
-tqdm==4.66.5
-numpy>=1.24,<3
-torch>=2.1
-
