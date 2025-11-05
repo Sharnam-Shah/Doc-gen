@@ -1,0 +1,14 @@
+This is a sample Certificate of Incorporation.
+
+Purpose: Provide a baseline legal template for Certificate of Incorporation usage.
+
+Key Sections:
+1. Parties and Definitions
+2. Term and Termination
+3. Confidentiality and IP
+4. Payment and Consideration (if applicable)
+5. Warranties and Disclaimers
+6. Limitation of Liability
+7. Governing Law and Dispute Resolution
+
+Notes: Replace placeholders with actual party names, dates, and terms.
