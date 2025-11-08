@@ -24,7 +24,7 @@ const MyDocuments = () => {
     }, [searchTerm, conversations]);
   const fetchConversations = async () => {
     try {
-      const response = await axios.get('conversations/');
+      const response = await axios.get('documents/conversations/');
       setConversations(response.data);
     } catch (error) {
       console.error('Error fetching conversations:', error);
@@ -35,7 +35,7 @@ const MyDocuments = () => {
   const handleDeleteConversation = async (id) => {
     if (window.confirm('Are you sure you want to delete this document?')) {
       try {
-        await axios.delete(`conversations/${id}/`);
+        await axios.delete(`documents/conversations/${id}/`);
         toast.success('Document deleted successfully!');
         fetchConversations(); // Refresh the list
       } catch (error) {
@@ -47,7 +47,7 @@ const MyDocuments = () => {
 
   const handleDownloadLatestPdf = async (conversationId, title) => {
     try {
-      const response = await axios.get(`conversations/${conversationId}/download/`, {
+      const response = await axios.get(`utils/conversations/${conversationId}/download-latest-pdf/`, {
         responseType: 'blob', // Important for downloading files
       });
       const filename = `${title || 'document'}.pdf`;

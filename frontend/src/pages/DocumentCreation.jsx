@@ -145,7 +145,7 @@ const DocumentCreation = () => {
     console.log("[DEBUG Frontend] fetchConversation called with ID:", idToFetch);
     if (idToFetch) {
       try {
-        const convResponse = await axios.get(`conversations/${idToFetch}/`);
+        const convResponse = await axios.get(`documents/conversations/${idToFetch}/`);
         const conversation = convResponse.data;
         console.log("[DEBUG Frontend] Fetched conversation messages:", conversation.messages);
         setTitle(conversation.title || '');
@@ -219,7 +219,7 @@ const DocumentCreation = () => {
     }
 
     try {
-      const response = await axios.post('chat/', { messages: payloadMessages });
+      const response = await axios.post('ai-generator/chat/', { messages: payloadMessages });
       const aiResponse = response.data;
       
       if (aiResponse.type === 'document') {
@@ -264,7 +264,7 @@ const DocumentCreation = () => {
       let idToUseForFetch = mongoConversationId; // Use the ID from params initially
 
       if (!mongoConversationId) { // If it's a new document
-        const convResponse = await axios.post('conversations/', { 
+        const convResponse = await axios.post('documents/conversations/', { 
             title: title, 
             messages: messages, // Send the actual messages state
             initial_document_content: finalDocument 
@@ -275,7 +275,7 @@ const DocumentCreation = () => {
         navigate(`/document-creation/${idToUseForFetch}`, { replace: true });
         toast.success('New Document created and saved as Version 0!');
       } else { // If updating an existing document
-        await axios.put(`conversations/${mongoConversationId}/`, conversationPayload);
+        await axios.put(`documents/conversations/${mongoConversationId}/`, conversationPayload);
         toast.success('Document updated and new version saved!');
       }
       // Explicitly fetch the conversation using the *correct* ID
@@ -295,7 +295,7 @@ const DocumentCreation = () => {
       return;
     }
     try {
-      const response = await axios.get(`conversations/${mongoConversationId}/download/`, {
+      const response = await axios.get(`utils/conversations/${mongoConversationId}/download-latest-pdf/`, {
         responseType: 'blob',
       });
       saveAs(response.data, `${title || 'legal_document'}.pdf`);
@@ -320,7 +320,7 @@ const DocumentCreation = () => {
     try {
       const form = new FormData();
       form.append('signature', file);
-      const res = await axios.post('upload-signature/', form, {
+      const res = await axios.post('utils/upload-signature/', form, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       const url = res.data?.url;
@@ -349,7 +349,7 @@ Preserve all existing content and headings. Return the entire updated document i
       payloadMessages.push({ sender: 'user', text: instruction });
 
       setIsGenerating(true);
-      const chatRes = await axios.post('chat/', { messages: payloadMessages });
+      const chatRes = await axios.post('ai-generator/chat/', { messages: payloadMessages });
       const aiResponse = chatRes.data;
       if (aiResponse.type === 'document') {
         const documentMarkdown = aiResponse.text;
