@@ -28,7 +28,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get('SECRET_KEY', default='your-secret-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = 'RENDER' not in os.environ
+DEBUG = True
+
+CORS_ALLOW_ALL_ORIGINS = True  # Only for development
+CORS_ALLOW_CREDENTIALS = True  # If you need to support credentials
 
 ALLOWED_HOSTS = []
 
@@ -45,10 +48,30 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:5173",
+    "http://127.0.0.1:5173",
     "https://doc-gen-iota.vercel.app",
-    
 ]
 CORS_EXPOSE_HEADERS = ['Content-Disposition']
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 
 # Application definition
@@ -64,6 +87,7 @@ INSTALLED_APPS = [
     'generator',
     'corsheaders',
     'whitenoise.runserver_nostatic',
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -175,3 +199,11 @@ cloudinary.config(
 
 # MongoDB configuration
 MONGO_URI = os.getenv("MONGO_URI")
+
+# Channels configuration
+ASGI_APPLICATION = 'legal_doc_generator.asgi.application'
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer'
+    }
+}

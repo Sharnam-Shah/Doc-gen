@@ -13,6 +13,7 @@ import DocumentAnalyzer from "./pages/DocumentAnalyzer";
 import LawyerConnect from "./pages/LawyerConnect";
 import MyDocuments from "./pages/MyDocuments";
 import DocumentCreation from "./pages/DocumentCreation";
+import SharedDocument from "./pages/SharedDocument";
 
 function AppContent() {
   const location = useLocation();
@@ -31,6 +32,7 @@ function AppContent() {
           <Route path="/document-analyzer/:id" element={<DocumentAnalyzer />} />
           <Route path="/document-creation" element={<DocumentCreation />} />
           <Route path="/document-creation/:id" element={<DocumentCreation />} />
+          <Route path="/shared/:id" element={<SharedDocument />} />
           <Route path="/lawyer-connect" element={<LawyerConnect />} />
           <Route path="/my-documents" element={<MyDocuments />} />
 

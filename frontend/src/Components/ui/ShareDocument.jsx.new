@@ -1,0 +1,126 @@
+import React, { useState, useCallback } from 'react';
+import { Share, Copy, Loader } from 'lucide-react';
+import axios from '../../api/axios';
+import toast from 'react-hot-toast';
+
+const ShareDocument = ({ documentContent, title }) => {
+    const [open, setOpen] = useState(false);
+    const [shareUrl, setShareUrl] = useState('');
+    const [snackbarOpen, setSnackbarOpen] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(false);
+
+    const handleClickOpen = useCallback(async () => {
+        if (!documentContent) {
+            toast.error('No document content to share');
+            return;
+        }
+
+        setIsGenerating(true);
+        let retryCount = 0;
+        const maxRetries = 3;
+
+        const attemptSave = async () => {
+            try {
+                const saveResponse = await axios.documentOperation('conversations/', 'post', {
+                    title: title || 'Shared Document',
+                    messages: [],
+                    initial_document_content: documentContent,
+                    notes: 'Shared document'
+                });
+
+                if (saveResponse.data && saveResponse.data.id) {
+                    const baseUrl = window.location.origin;
+                    const shareUrl = `${baseUrl}/shared/${saveResponse.data.id}`;
+                    setShareUrl(shareUrl);
+                    setOpen(true);
+                    toast.success('Share link generated successfully!');
+                    return true;
+                }
+                return false;
+            } catch (error) {
+                console.error('Error generating share link:', error);
+                return false;
+            }
+        };
+
+        while (retryCount < maxRetries) {
+            const success = await attemptSave();
+            if (success) break;
+
+            retryCount++;
+            if (retryCount < maxRetries) {
+                toast.loading(`Retrying... (${retryCount}/${maxRetries})`);
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2s before retry
+            } else {
+                toast.error('Failed to generate share link after multiple attempts');
+            }
+        }
+
+        setIsGenerating(false);
+    }, [documentContent, title]);
+
+    const handleClose = () => {
+        setOpen(false);
+    };
+
+    const handleCopyClick = () => {
+        navigator.clipboard.writeText(shareUrl);
+        toast.success('Link copied to clipboard!');
+        setSnackbarOpen(true);
+    };
+
+    return (
+        <>
+            <button
+                onClick={handleClickOpen}
+                disabled={isGenerating}
+                className={`px-6 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors flex items-center space-x-2 ${isGenerating ? 'opacity-75 cursor-not-allowed' : ''}`}
+            >
+                {isGenerating ? (
+                    <>
+                        <Loader className="w-5 h-5 animate-spin" />
+                        <span>Generating Link...</span>
+                    </>
+                ) : (
+                    <>
+                        <Share className="w-5 h-5" />
+                        <span>Share Document</span>
+                    </>
+                )}
+            </button>
+            
+            {open && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-xl p-6 max-w-lg w-full mx-4">
+                        <h2 className="text-2xl font-bold mb-4">Share Document</h2>
+                        <div className="flex items-center space-x-2 mb-4">
+                            <input
+                                type="text"
+                                value={shareUrl}
+                                readOnly
+                                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                            <button
+                                onClick={handleCopyClick}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                title="Copy to clipboard"
+                            >
+                                <Copy className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="flex justify-end">
+                            <button
+                                onClick={handleClose}
+                                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    );
+};
+
+export default ShareDocument;

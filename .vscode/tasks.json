@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Apply Migrations",
+			"type": "shell",
+			"command": "cd backend && python manage.py migrate",
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

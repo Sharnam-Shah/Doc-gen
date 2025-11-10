@@ -1,6 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { FileText, PenTool, Send, Download, User, Bot, Save, Edit, Eye, Bold, Italic, Strikethrough, Code, Pilcrow, Heading1, Heading2, Heading3, Indent as IndentIcon, Outdent as OutdentIcon, AlignLeft, AlignCenter, AlignRight, AlignJustify, Underline as UnderlineIcon, Minus as HorizontalRuleIcon } from 'lucide-react';
+import { FileText, PenTool, Send, Download, User, Bot, Save, Edit, Eye, Bold, Italic, Strikethrough, Code, Pilcrow, Heading1, Heading2, Heading3, Indent as IndentIcon, Outdent as OutdentIcon, AlignLeft, AlignCenter, AlignRight, AlignJustify, Underline as UnderlineIcon, Minus as HorizontalRuleIcon, Share } from 'lucide-react';
+import Comments from '../Components/ui/Comments';
+import ShareDocument from '../Components/ui/ShareDocument';
+import useWebSocket from '../lib/utils/useWebSocket';
 import axios from '../api/axios';
 import { saveAs } from 'file-saver';
 import '../styles/MarkdownPreview.css';
@@ -117,6 +120,9 @@ const DocumentCreation = () => {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const versionToLoad = queryParams.get('version');
+  
+  // Initialize WebSocket connection if we have a document ID
+  const webSocket = useWebSocket(mongoConversationId);
   
   const [messages, setMessages] = useState([]);
   const [title, setTitle] = useState('');
@@ -252,41 +258,82 @@ const DocumentCreation = () => {
       return;
     }
 
-    // Payload for the conversation history + new version content
-    const conversationPayload = {
-      title: title,
-      messages: messages, // <--- Debug: Check this value
-      new_document_content: finalDocument // Send new document content to be saved as a new version
-    };
-    console.log("[DEBUG Frontend] handleSaveConversation - messages being sent:", conversationPayload.messages);
-
-    try {
-      let idToUseForFetch = mongoConversationId; // Use the ID from params initially
-
-      if (!mongoConversationId) { // If it's a new document
-        const convResponse = await axios.post('conversations/', { 
-            title: title, 
-            messages: messages, // Send the actual messages state
-            initial_document_content: finalDocument 
-        });
-        idToUseForFetch = convResponse.data.id; // Get the new ID
-        // Update the URL in the browser without causing a full re-render that loses state
-        // This will also cause mongoConversationId from useParams to update eventually
-        navigate(`/document-creation/${idToUseForFetch}`, { replace: true });
-        toast.success('New Document created and saved as Version 0!');
-      } else { // If updating an existing document
-        await axios.put(`conversations/${mongoConversationId}/`, conversationPayload);
-        toast.success('Document updated and new version saved!');
-      }
-      // Explicitly fetch the conversation using the *correct* ID
-      // This ensures the component's state is updated with the latest data from the DB
-      // including the newly saved version and messages.
-      await fetchConversation(idToUseForFetch);
-
-    } catch (error) {
-      console.error('Error saving document/conversation:', error);
-      toast.error(`Failed to save document or conversation: ${error.message}`);
+    if (!finalDocument.trim()) {
+      toast.error('Document content cannot be empty.');
+      return;
     }
+
+    const savePromise = new Promise(async (resolve, reject) => {
+      try {
+        let idToUseForFetch = mongoConversationId;
+        
+        if (!mongoConversationId) {
+          // New document
+          const payload = {
+            title: title.trim(),
+            messages: messages,
+            initial_document_content: finalDocument
+          };
+          
+          const convResponse = await axios.documentOperation(
+            'conversations/',
+            'post',
+            payload
+          );
+
+          idToUseForFetch = convResponse.data.id;
+          navigate(`/document-creation/${idToUseForFetch}`, { replace: true });
+          resolve(convResponse.data.message || 'New document created successfully!');
+        } else {
+          // Update existing document
+          const payload = {
+            title: title.trim(),
+            messages: messages,
+            new_document_content: finalDocument
+          };
+          
+          const updateResponse = await axios.documentOperation(
+            `conversations/${mongoConversationId}/`,
+            'put',
+            payload
+          );
+          
+          resolve(updateResponse.data.message || 'Document updated successfully!');
+        }
+
+        // Refresh the conversation data with retries
+        let retries = 3;
+        while (retries > 0) {
+          try {
+            await fetchConversation(idToUseForFetch);
+            break;
+          } catch (error) {
+            retries--;
+            if (retries === 0) throw error;
+            await new Promise(r => setTimeout(r, 1000)); // Wait 1 second before retry
+          }
+        }
+      } catch (error) {
+        console.error('Save error:', error);
+        if (error.code === 'ECONNABORTED') {
+          reject(new Error('Operation is taking longer than expected. Please try again.'));
+        } else if (error.response?.status === 504) {
+          reject(new Error('Server is busy. Please wait a moment and try again.'));
+        } else if (error.response?.data?.error) {
+          reject(new Error(error.response.data.error));
+        } else if (!navigator.onLine) {
+          reject(new Error('No internet connection. Please check your network.'));
+        } else {
+          reject(new Error('Unable to save document. Please try again.'));
+        }
+      }
+    });
+
+    toast.promise(savePromise, {
+      loading: 'Saving document...',
+      success: (message) => message,
+      error: (error) => error.message
+    });
   };
 
   const handleDownloadPdf = async () => {
@@ -295,13 +342,34 @@ const DocumentCreation = () => {
       return;
     }
     try {
+      toast.loading('Generating PDF...');
       const response = await axios.get(`conversations/${mongoConversationId}/download/`, {
         responseType: 'blob',
+        timeout: 60000, // Increased timeout for PDF generation
+        headers: {
+          'Accept': 'application/pdf'
+        }
       });
-      saveAs(response.data, `${title || 'legal_document'}.pdf`);
+
+      if (response.data.type === 'application/json') {
+        // If we got JSON instead of a PDF, it's an error
+        const reader = new FileReader();
+        reader.onload = () => {
+          const error = JSON.parse(reader.result);
+          toast.error(error.message || 'Failed to generate PDF');
+        };
+        reader.readAsText(response.data);
+        return;
+      }
+
+      const filename = `${title || 'legal_document'}_${new Date().toISOString().split('T')[0]}.pdf`;
+      saveAs(response.data, filename);
+      toast.success('PDF downloaded successfully!');
     } catch (error) {
       console.error('Error downloading PDF:', error);
-      toast.error(`Failed to download PDF: ${error.message}`);
+      toast.error(error.message || 'Failed to download PDF. Please try again.');
+    } finally {
+      toast.dismiss();
     }
   };
 
@@ -506,6 +574,16 @@ Preserve all existing content and headings. Return the entire updated document i
                 <Download className="w-6 h-6" />
                 <span>Download as PDF</span>
               </button>
+              <ShareDocument documentContent={finalDocument} title={title} />
+            </div>
+            
+            {/* Comments Section */}
+            <div className="mt-8">
+              <Comments 
+                documentId={mongoConversationId} 
+                webSocket={webSocket} 
+                user={localStorage.getItem('username') || 'Anonymous User'} 
+              />
             </div>
           </div>
         )}

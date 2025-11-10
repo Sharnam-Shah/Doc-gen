@@ -1,6 +1,9 @@
 django
 djangorestframework
 google-generativeai
+channels
+channels-redis
+daphne
 langchain
 langchain-google-genai
 python-dotenv
